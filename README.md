@@ -18,8 +18,3 @@ Usage:
 
 hue [command] [bulb(s)]/[group]
 
-hue on 33 34 35
-hue off 33,34,35    # Numbers can be space or comma seperated
-hue 50 33 34 35    # Set three bulbs to 50% brightness
-hue green kitchen  # Set the kitchen group to green
-
