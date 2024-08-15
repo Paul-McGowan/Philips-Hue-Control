@@ -22,6 +22,4 @@ hue on 33 34 35
 hue off 33,34,35    # Numbers can be space or comma seperated
 hue 50 33 34 35    # Set three bulbs to 50% brightness
 hue green kitchen  # Set the kitchen group to green
-hue save           # Creates an executable python script with the brightness and colour of every light
-                   # The lights can be restored by executing this script.
-hue light/temp     # Display the light level and temperature from a PIR sensor.
+
