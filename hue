@@ -1,0 +1,190 @@
+#!/usr/bin/python3
+
+# Script to control lights on a Philips Hue hub
+#
+# hue [command] [group name] [bulb number(s)]
+#
+# hue on 33 34 35
+# hue on 33,34,35
+# hue 50 kitchen
+
+from phue import Bridge
+import os, re, sys, json, stat, urllib.request
+
+# The IP address of your Hue bridge
+# The key generated when running the 'key' Python script
+# The filename of the executable restore file to create
+# The keyword to search for to identify a Smart Plug device
+ip, key, restore, plugName  = "10.10.255.30", "aaaaaaaaAAAAAAAA00000000zzzzzzzz", "restore", "Plug"
+
+# Create the groups/rooms you need. The bulb numbers can be found using
+# the 'bulbs' Python script. Bulbs can be used in as many groups as you like
+groups = {
+    "inside"     : [44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 57, 62, 63],
+    "downstairs" : [6, 12, 16, 17, 18, 23, 24, 26, 27, 28, 29, 33, 34, 35],
+    "upstairs"   : [30, 31, 32, 44, 46, 47, 48, 50, 51, 52, 53, 54, 62],
+    "outside"    : [3, 9, 11, 45, 58, 59, 60, 61],
+    "living"     : [12, 17, 18, 24, 26, 28, 29],
+    "movie"      : [12, 17, 18, 24, 26, 28, 29],
+    "kitchen"    : [33, 34, 35, 36, 37],
+    "sunset"     : [58, 59, 60, 61, 45],
+    "bathroom"   : [50, 51, 52, 53],
+    "garage"     : [58, 59, 60, 61],
+    "utility"    : [38, 39, 40],
+    "patio"      : [3, 9, 11],
+    "garden"     : [45],
+    "dining"     : [23],
+    "hallway"    : [16],
+}
+
+# These are the colour names, and their XY definitions
+colours = {
+    "pink"       : [0.4691, 0.2468],
+    "red"        : [0.6915, 0.3083],
+    "coral"      : [0.5754, 0.3480],
+    "orange"     : [0.5921, 0.3830],
+    "yellow"     : [0.4325, 0.5007],
+    "green"      : [0.4091, 0.5180],
+    "cyan"       : [0.1810, 0.2780],
+    "blue"       : [0.1670, 0.0400],
+    "purple"     : [0.3826, 0.1597],
+    "violet"     : [0.2852, 0.1086],
+    "ghost"      : [0.3098, 0.3220],
+    "smoke"      : [0.3227, 0.3290],
+    "grey"       : [0.2926, 0.2880],
+    "slate"      : [0.2198, 0.1443],
+    "white"      : [0.3227, 0.3290],
+    "raf"        : [0.2051, 0.1152],
+}
+
+# ----------------------------------------
+# No editing is required beyond this point
+# ----------------------------------------
+
+# Connect & authenticate with the Hue hub
+hue = Bridge(ip, key)
+
+# Strip all the 'plug' devices from the 'devices' variable
+def noPlug():
+    global devices
+    devices = [ x for x in devices if plugName not in str(hue.get_light(int(x), "name")) ]
+    if len(devices) < 1: sys.exit("Operation not permitted on PLUG devices")
+
+# Get a list of all lights/bulbs
+def all():
+    bulbs = []
+    for x, bulb in enumerate((str(hue.get_light_objects("id"))).split(",")):
+        bulbs.append((" ".join((" ".join([ word for word in re.sub('[{}:<>".]', " ", bulb).split() if word not in ["phue", "Light", "object", "at"]])).split(" ")[:-1])).split(" ")[0])
+    sys.argv[2:] = [int(x) for x in bulbs]
+
+# Process the command line
+try:
+# The first entry is the command, on,off and such.
+    cmd = sys.argv[1].lower()
+    if len(sys.argv) > 2:
+        # This line strips out the comma seperated values to give us a list
+        # of numbers.
+        if ',' in sys.argv[2]: sys.argv[2:] = sys.argv[2].split(',')
+        # If we enter a group name, use the numbers from that
+        if sys.argv[2].lower() in groups:
+            sys.argv[2:] = groups.get(sys.argv[2])
+        else:
+            # If we use the word 'all', get all the light/bulb numbers
+            if sys.argv[2].lower() == "all":
+                all()
+    # Assign the numbers to the variable 'devices'
+    devices = list(map(int, sys.argv[2:]))
+except:
+    # We entered something the script didn't like
+    sys.exit("Error processing command line")
+
+# Turn lights on/off
+if cmd in ("on", "off"):
+    hue.set_light(devices, "on", True if cmd == "on" else False)
+    sys.exit()
+
+# Return the status of lights
+if cmd == "status":
+    for bulb in devices:
+        onOff = " :Off"
+        if hue.get_light(int(bulb), "on"): onOff = " :On"
+        print ("Bulb number " + str(bulb) + onOff)
+# Smart Plugs dont have colour or brightness, so ignore those
+        if plugName not in str(hue.get_light(int(bulb), "name")):
+            print ("Brightness     :" + str(hue.get_light(int(bulb), "bri")))
+            print ("Colour XY      :" + str(hue.get_light(int(bulb), "xy")))
+    sys.exit()
+
+# Return the light level from the PIR
+if cmd == "light":
+    for x, sw in enumerate((str(hue.get_sensor_objects("id"))).split(",")):
+        if "ambient" in sw:
+            id = str(int(sw.split(":")[0]))
+            break
+    print (f'{(int((hue.get_api()["sensors"][id]["state"]["lightlevel"]) / 100)) / 450:.0%}')
+    sys.exit()
+
+# Return the temperature from the PIR
+if cmd == "temp":
+    for x, sw in enumerate((str(hue.get_sensor_objects("id"))).split(",")):
+        if "temperature" in sw:
+            id = str(int(sw.split(":")[0]))
+            break
+    print (str(int((hue.get_api()["sensors"][id]["state"]["temperature"]) / 100))+"\xb0C")
+    sys.exit()
+
+# Save the brightness level and colour of each light
+if cmd in ("save", "backup", "export", "dump"):
+    print ("Creating executable recovery file...'" + restore + "'")
+    all()
+    devices = list(map(str, sys.argv[2:]))
+    noPlug()
+    dump = json.loads(format(urllib.request.urlopen("http://"+ip+"/api/"+key).read().decode("utf-8")))
+# Redirect output to file
+    orig_stdout = sys.stdout
+    f = open(restore, 'w')
+    sys.stdout = f
+    print ("#!/usr/bin/python3")
+    print ("")
+    print ("import time")
+    print ("from phue import Bridge")
+    print ("")
+    print ("hue=Bridge('"+ip+"','"+key+"')")
+    print ("")
+    print ("def reset(bulb,xy,bright):")
+    print ("   if hue.get_light(bulb,'on') is False:")
+    print ("       hue.set_light(bulb,'on',True)")
+    print ("       hue.set_light(bulb,'xy',xy)")
+    print ("       hue.set_light(bulb,'brightness',bright)")
+    print ("       time.sleep(1)")
+    print ("       hue.set_light(bulb,'on',False)")
+    print ("   else:")
+    print ("       hue.set_light(bulb,'xy',xy)")
+    print ("       hue.set_light(bulb,'brightness',bright)")
+    print ("")
+    for x in devices:
+        print ("reset(",x,",",dump["lights"][x]["state"]["xy"],",",dump["lights"][x]["state"]["bri"],")",sep="",)
+# Return output to normal and make the file executable
+    sys.stdout = orig_stdout
+    f.close()
+    os.chmod(restore, os.stat(restore).st_mode | 0o111)
+    sys.exit("Done")
+
+noPlug()
+
+# If the command is a digit, it's a brightness level, so we set the lights to this
+if cmd.isdigit() == True:
+    pct = int(255 * float(int(cmd) / 100))
+    if pct > 250: pct = 250
+    if pct < 5: pct = 5
+    hue.set_light(devices, "on", True)
+    hue.set_light(devices, "bri", pct)
+    sys.exit()
+
+# If the command is a colour, set the colouro
+if cmd in colours:
+    hue.set_light(devices, "on", True)
+    hue.set_light(devices, "xy", colours.get(cmd))
+    sys.exit()
+
+sys.exit("Syntax Error-Unknown command")

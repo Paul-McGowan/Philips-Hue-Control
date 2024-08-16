@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+
+import re, sys
+from phue import Bridge
+
+hue = Bridge("10.10.255.30", "aaaaaaaaaa0000000000zzzzzzzzzzAAAAAAAAAA")
+
+lights = (str(hue.get_light_objects("id"))).split(",")
+
+for x, bulb in enumerate(lights):
+    print (" ".join((" ".join([word for word in re.sub('[{}:<>".]', " ", bulb).split() if word not in ["phue", "Light", "object", "at"]])).split(" ")[:-1]))
+
+print("Number of controllable objects", len(lights))
