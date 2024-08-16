@@ -64,7 +64,7 @@ colours = {
 # Connect & authenticate with the Hue hub
 hue = Bridge(ip, key)
 
-# Strip all the 'plug' devices from the 'devices' variable
+# Strip all the 'plug' devices from the 'plugName' variable
 def noPlug():
     global devices
     devices = [ x for x in devices if plugName not in str(hue.get_light(int(x), "name")) ]
